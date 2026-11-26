@@ -1,0 +1,48 @@
+# ----------------------------------------------------------------------
+# Devisha Industries - Apache Configuration (.htaccess)
+# Resolves:
+#   DEV-01: 301 redirect from trailing slashes to no-slash canonical URLs
+#   DEV-02: 301 redirect from HTTP to HTTPS and WWW to non-WWW
+#   DEV-03: Consistent canonical URL enforcement & proper static file delivery
+# ----------------------------------------------------------------------
+
+Options -Indexes -MultiViews
+DirectorySlash Off
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # 1. Force non-WWW (redirect www.devishaindustries.com/* to devishaindustries.com/*)
+  RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+  RewriteRule ^ https://%1%{REQUEST_URI} [R=301,L,NE]
+
+  # 2. Force HTTPS (direct Apache, reverse proxy, or Cloudflare)
+  RewriteCond %{HTTP:CF-Visitor} '"scheme":"http"' [OR]
+  RewriteCond %{HTTP:X-Forwarded-Proto} =http [OR]
+  RewriteCond %{HTTPS} !on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L,NE]
+
+  # 3. Strip trailing slashes from URLs (e.g. /resources/ -> /resources, /services/ -> /services)
+  # Preserves root URL (/), ignores POST requests, and ignores API calls
+  RewriteCond %{REQUEST_METHOD} !POST
+  RewriteCond %{THE_REQUEST} \s/+(.+?)/+[?\s]
+  RewriteCond %{REQUEST_URI} !^/api/
+  RewriteRule ^ https://%{HTTP_HOST}/%1 [R=301,L,NE,QSA]
+
+  # 4. If requested path is an existing file, serve directly
+  RewriteCond %{REQUEST_FILENAME} -f
+  RewriteRule ^ - [L]
+
+  # 5. Serve pre-rendered static route HTML files if available
+  RewriteCond %{REQUEST_FILENAME}.html -f
+  RewriteRule ^([^/]+)$ $1.html [L]
+
+  RewriteCond %{REQUEST_FILENAME}/index.html -f
+  RewriteRule ^([^/]+)$ $1/index.html [L]
+
+  # 6. Fallback for client-side SPA routing
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
